@@ -114,7 +114,8 @@ import {
   RECENTLY_USED_FIND_RELEVANT_FILES_CONFIG_IDS_STATE_KEY,
   RECENTLY_USED_EDIT_CONTEXT_CONFIG_IDS_STATE_KEY,
   get_recently_used_presets_or_groups_key,
-  FIND_RELEVANT_FILES_SHRINK_SOURCE_CODE_STATE_KEY
+  FIND_RELEVANT_FILES_SHRINK_SOURCE_CODE_STATE_KEY,
+  SEND_ONLY_FILE_TREE_STATE_KEY
 } from '@/constants/state-keys'
 import {
   config_preset_to_ui_format,
@@ -192,6 +193,8 @@ export class PanelProvider implements vscode.WebviewViewProvider {
   public auto_closing_action_resolver:
     | ((action: 'action' | 'close') => void)
     | undefined = undefined
+
+  public send_only_file_tree: boolean = false
 
   public get current_ask_about_context_instruction(): string {
     return (
@@ -409,6 +412,11 @@ export class PanelProvider implements vscode.WebviewViewProvider {
     )
     this.find_relevant_files_instructions = this._load_instructions(
       INSTRUCTIONS_FIND_RELEVANT_FILES_STATE_KEY
+    )
+
+    this.send_only_file_tree = this.context.workspaceState.get<boolean>(
+      SEND_ONLY_FILE_TREE_STATE_KEY,
+      false
     )
 
     this.chat_edit_format =
@@ -1011,10 +1019,6 @@ export class PanelProvider implements vscode.WebviewViewProvider {
             await handle_open_website(message)
           } else if (message.command == 'SET_RECORDING_STATE') {
             await handle_voice_input(this, message)
-          } else if (message.command == 'GET_SETUP_PROGRESS') {
-            await this.send_setup_progress()
-          } else if (message.command == 'REQUEST_RETURN_HOME') {
-            await handle_return_home_and_switch_to_edit_context(this)
           } else if (
             message.command == 'GET_FIND_RELEVANT_FILES_SHRINK_SOURCE_CODE'
           ) {
@@ -1026,6 +1030,25 @@ export class PanelProvider implements vscode.WebviewViewProvider {
               this,
               message.shrink_source_code
             )
+          } else if (message.command == 'GET_SEND_ONLY_FILE_TREE') {
+            this.send_message({
+              command: 'SEND_ONLY_FILE_TREE',
+              send_only_file_tree: this.send_only_file_tree
+            })
+          } else if (message.command == 'SAVE_SEND_ONLY_FILE_TREE') {
+            this.send_only_file_tree = message.send_only_file_tree
+            await this.context.workspaceState.update(
+              SEND_ONLY_FILE_TREE_STATE_KEY,
+              message.send_only_file_tree
+            )
+            this.send_message({
+              command: 'SEND_ONLY_FILE_TREE',
+              send_only_file_tree: this.send_only_file_tree
+            })
+          } else if (message.command == 'GET_SETUP_PROGRESS') {
+            await this.send_setup_progress()
+          } else if (message.command == 'REQUEST_RETURN_HOME') {
+            await handle_return_home_and_switch_to_edit_context(this)
           } else if (message.command == 'RELEVANT_FILES_MODAL_RESPONSE') {
             if (this.relevant_files_choice_resolver) {
               this.relevant_files_choice_resolver(message.files)

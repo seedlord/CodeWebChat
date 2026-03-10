@@ -173,6 +173,7 @@ export const handle_send_to_browser = async (params: {
       )
     }
 
+    // Für Code-Completions ignorieren wir die Send Only File Tree und Shrink Einstellungen
     const collected = await files_collector.collect_files()
     const context_text = collected.other_files + collected.recent_files
 
@@ -224,9 +225,17 @@ export const handle_send_to_browser = async (params: {
       no_context: params.panel_provider.web_prompt_type == 'no-context',
       shrink:
         params.panel_provider.web_prompt_type == 'find-relevant-files' &&
-        shrink_source_code
+        shrink_source_code,
+      tree_only:
+        params.panel_provider.web_prompt_type == 'find-relevant-files' &&
+        params.panel_provider.send_only_file_tree
     })
-    const context_text = collected.other_files + collected.recent_files
+
+    // Wenn tree_only aktiv ist, wird kein <files> tag drum herum gewickelt
+    let context_text = collected.other_files + collected.recent_files
+    const is_tree_only =
+      params.panel_provider.web_prompt_type == 'find-relevant-files' &&
+      params.panel_provider.send_only_file_tree
 
     const prepared_chats = await Promise.all(
       resolved_preset_names.map(async (preset_name) => {
@@ -335,14 +344,16 @@ export const handle_send_to_browser = async (params: {
           system_instructions_xml = `${instructions_to_use}\n${find_relevant_files_format_for_panel}`
         }
 
+        const formatted_context = context_text
+          ? is_tree_only
+            ? `${context_text}\n`
+            : `<files>\n${context_text}</files>\n`
+          : ''
+
         return {
-          text: context_text
-            ? `<files>\n${context_text}</files>\n${skill_definitions}${
-                system_instructions_xml ? system_instructions_xml + '\n' : ''
-              }${processed_instructions}`
-            : `${
-                system_instructions_xml ? system_instructions_xml + '\n' : ''
-              }${skill_definitions}${processed_instructions}`,
+          text: `${formatted_context}${skill_definitions}${
+            system_instructions_xml ? system_instructions_xml + '\n' : ''
+          }${processed_instructions}`,
           preset_name,
           raw_instructions: current_instructions,
           prompt_type: params.panel_provider.web_prompt_type,

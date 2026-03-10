@@ -61,6 +61,8 @@ export const use_panel = (vscode: any) => {
     find_relevant_files_shrink_source_code,
     set_find_relevant_files_shrink_source_code
   ] = useState<boolean>(false)
+  const [send_only_file_tree, set_send_only_file_tree] =
+    useState<boolean>(false)
 
   const handle_task_forward = (text: string) => {
     handle_instructions_change(text, 'edit-context')
@@ -129,6 +131,14 @@ export const use_panel = (vscode: any) => {
     })
   }
 
+  const handle_send_only_file_tree_change = (checked: boolean) => {
+    set_send_only_file_tree(checked)
+    post_message(vscode, {
+      command: 'SAVE_SEND_ONLY_FILE_TREE',
+      send_only_file_tree: checked
+    })
+  }
+
   useEffect(() => {
     const handle_message = (event: MessageEvent<BackendMessage>) => {
       const message = event.data
@@ -170,6 +180,8 @@ export const use_panel = (vscode: any) => {
         set_setup_progress(message.setup_progress)
       } else if (message.command == 'FIND_RELEVANT_FILES_SHRINK_SOURCE_CODE') {
         set_find_relevant_files_shrink_source_code(message.shrink_source_code)
+      } else if (message.command == 'SEND_ONLY_FILE_TREE') {
+        set_send_only_file_tree(message.send_only_file_tree)
       } else if (message.command == 'RETURN_HOME') {
         set_active_view('home')
       }
@@ -189,7 +201,8 @@ export const use_panel = (vscode: any) => {
       { command: 'REQUEST_CAN_UNDO' },
       { command: 'GET_FIND_RELEVANT_FILES_INSTRUCTIONS_PREFIX' },
       { command: 'GET_SETUP_PROGRESS' },
-      { command: 'GET_FIND_RELEVANT_FILES_SHRINK_SOURCE_CODE' }
+      { command: 'GET_FIND_RELEVANT_FILES_SHRINK_SOURCE_CODE' },
+      { command: 'GET_SEND_ONLY_FILE_TREE' }
     ]
     initial_messages.forEach((message) => post_message(vscode, message))
 
@@ -331,6 +344,8 @@ export const use_panel = (vscode: any) => {
     is_setup_complete,
     find_relevant_files_shrink_source_code,
     handle_find_relevant_files_shrink_source_code_change,
+    send_only_file_tree,
+    handle_send_only_file_tree_change,
     handle_tab_change,
     handle_new_tab,
     handle_tab_delete

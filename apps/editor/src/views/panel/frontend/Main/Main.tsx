@@ -76,6 +76,8 @@ type Props = {
   is_setup_complete: boolean
   find_relevant_files_shrink_source_code: boolean
   on_find_relevant_files_shrink_source_code_change: (shrink: boolean) => void
+  send_only_file_tree: boolean
+  on_send_only_file_tree_change: (checked: boolean) => void
   tabs_count: number
   active_tab_index: number
   on_tab_change: (index: number) => void
@@ -869,6 +871,8 @@ export const Main: React.FC<Props> = (props) => {
       on_find_relevant_files_shrink_source_code_change={
         props.on_find_relevant_files_shrink_source_code_change
       }
+      send_only_file_tree={props.send_only_file_tree}
+      on_send_only_file_tree_change={props.on_send_only_file_tree_change}
       is_setup_complete={props.is_setup_complete}
       tabs_count={props.tabs_count}
       active_tab_index={props.active_tab_index}

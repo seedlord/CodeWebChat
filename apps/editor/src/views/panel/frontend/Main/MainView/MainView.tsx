@@ -121,6 +121,8 @@ type Props = {
   on_recording_finished: () => void
   find_relevant_files_shrink_source_code: boolean
   on_find_relevant_files_shrink_source_code_change: (shrink: boolean) => void
+  send_only_file_tree: boolean
+  on_send_only_file_tree_change: (checked: boolean) => void
   is_setup_complete: boolean
   tabs_count: number
   active_tab_index: number
@@ -218,16 +220,35 @@ export const MainView: React.FC<Props> = (props) => {
         <UiSeparator height={4} />
 
         {is_in_find_relevant_files_prompt_type && (
-          <div className={styles['shrink-source-code-checkbox']}>
-            <UiCheckbox
-              checked={props.find_relevant_files_shrink_source_code}
-              on_change={props.on_find_relevant_files_shrink_source_code_change}
-              id="shrink-source-code"
-            />
-            <label htmlFor="shrink-source-code">
-              {t('home.shrink-source-code')}
-            </label>
-          </div>
+          <>
+            <div className={styles['shrink-source-code-checkbox']}>
+              <UiCheckbox
+                checked={props.send_only_file_tree}
+                on_change={props.on_send_only_file_tree_change}
+                id="send-only-file-tree"
+              />
+              <label htmlFor="send-only-file-tree">
+                {t('home.send-only-file-tree')}
+              </label>
+            </div>
+
+            <div className={styles['shrink-source-code-checkbox']}>
+              <UiCheckbox
+                checked={props.find_relevant_files_shrink_source_code}
+                on_change={
+                  props.on_find_relevant_files_shrink_source_code_change
+                }
+                id="shrink-source-code"
+                disabled={props.send_only_file_tree}
+              />
+              <label
+                htmlFor="shrink-source-code"
+                style={{ opacity: props.send_only_file_tree ? 0.5 : 1 }}
+              >
+                {t('home.shrink-source-code')}
+              </label>
+            </div>
+          </>
         )}
 
         {!props.is_connected && props.mode == MODE.WEB && (

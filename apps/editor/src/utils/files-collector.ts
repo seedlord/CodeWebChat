@@ -24,6 +24,7 @@ export class FilesCollector {
     additional_paths?: string[]
     no_context?: boolean
     shrink?: boolean
+    tree_only?: boolean
   }): Promise<{ other_files: string; recent_files: string }> {
     const additional_paths = (params?.additional_paths ?? []).map((p) => {
       if (this.workspace_roots.length > 0) {
@@ -48,6 +49,15 @@ export class FilesCollector {
     }
 
     const context_files = [...new Set(context_files_list)]
+
+    // Wenn tree_only aktiv ist, bauen wir nur den Verzeichnisbaum aus den selektierten Dateien
+    if (params?.tree_only) {
+      const tree_string = this._generate_tree_string(context_files)
+      return {
+        other_files: tree_string,
+        recent_files: '' // Bleibt leer, alles geht in den Haupt-String
+      }
+    }
 
     // Sort context files based on modification time and selection timestamp
     const { other_files: other_paths, recent_files: recent_paths } =
@@ -112,6 +122,30 @@ export class FilesCollector {
       other_files: process_paths(other_paths),
       recent_files: process_paths(recent_paths)
     }
+  }
+
+  // Generiert eine flache Liste aller ausgewählten Dateipfade
+  private _generate_tree_string(file_paths: string[]): string {
+    const relative_paths = file_paths
+      .map((file_path) => {
+        const workspace_root = this._get_workspace_root_for_file(file_path)
+        if (!workspace_root) return file_path.replace(/\\/g, '/')
+
+        const relative_path = path
+          .relative(workspace_root, file_path)
+          .replace(/\\/g, '/')
+        if (this.workspace_roots.length > 1) {
+          const workspace_name =
+            this.workspace_provider.get_workspace_name(workspace_root)
+          return `${workspace_name}/${relative_path}`
+        }
+        return relative_path
+      })
+      .sort()
+
+    if (relative_paths.length === 0) return ''
+
+    return `<workspace_file_tree>\n${relative_paths.join('\n')}\n</workspace_file_tree>\n`
   }
 
   private _get_workspace_root_for_file(file_path: string): string | undefined {

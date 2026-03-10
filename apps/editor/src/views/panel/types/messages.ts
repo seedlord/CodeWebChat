@@ -562,6 +562,16 @@ export interface SaveFindRelevantFilesShrinkSourceCodeMessage extends BaseMessag
   shrink_source_code: boolean
 }
 
+// NEUE NACHRICHTEN FÜR "SEND ONLY FILE TREE"
+export interface GetSendOnlyFileTreeMessage extends BaseMessage {
+  command: 'GET_SEND_ONLY_FILE_TREE'
+}
+
+export interface SaveSendOnlyFileTreeMessage extends BaseMessage {
+  command: 'SAVE_SEND_ONLY_FILE_TREE'
+  send_only_file_tree: boolean
+}
+
 export interface GetSetupProgressMessage extends BaseMessage {
   command: 'GET_SETUP_PROGRESS'
 }
@@ -684,6 +694,8 @@ export type FrontendMessage =
   | SetRecordingStateMessage
   | GetFindRelevantFilesShrinkSourceCodeMessage
   | SaveFindRelevantFilesShrinkSourceCodeMessage
+  | GetSendOnlyFileTreeMessage
+  | SaveSendOnlyFileTreeMessage
   | GetSetupProgressMessage
   | RequestReturnHomeMessage
   | RelevantFilesModalResponseMessage
@@ -947,6 +959,11 @@ export interface FindRelevantFilesShrinkSourceCodeMessage extends BaseMessage {
   shrink_source_code: boolean
 }
 
+export interface SendOnlyFileTreeMessage extends BaseMessage {
+  command: 'SEND_ONLY_FILE_TREE'
+  send_only_file_tree: boolean
+}
+
 export interface SetupProgressMessage {
   command: 'SETUP_PROGRESS'
   setup_progress: SetupProgress
@@ -1016,6 +1033,7 @@ export type BackendMessage =
   | FindRelevantFilesInstructionsPrefixMessage
   | RecordingStateMessage
   | FindRelevantFilesShrinkSourceCodeMessage
+  | SendOnlyFileTreeMessage
   | SetupProgressMessage
   | InsertSymbolAtCursorMessage
   | ReturnHomeMessage

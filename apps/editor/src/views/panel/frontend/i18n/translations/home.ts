@@ -143,5 +143,23 @@ export const home = {
     cs: 'Odstranit těla funkcí a komentáře',
     hu: 'Függvénytestek és megjegyzések eltávolítása',
     bg: 'Премахване на телата на функциите и коментарите'
+  },
+  'home.send-only-file-tree': {
+    en: 'Provide only file tree',
+    pl: 'Podaj tylko drzewo plików',
+    'zh-cn': '仅提供文件树',
+    ja: 'ファイルツリーのみを提供する',
+    'zh-tw': '僅提供文件樹',
+    de: 'Nur Dateibaum bereitstellen',
+    es: 'Proporcionar solo el árbol de archivos',
+    fr: "Fournir uniquement l'arborescence des fichiers",
+    'pt-br': 'Fornecer apenas a árvore de arquivos',
+    ru: 'Предоставить только дерево файлов',
+    ko: '파일 트리만 제공',
+    it: "Fornisci solo l'albero dei file",
+    tr: 'Yalnızca dosya ağacını sağla',
+    cs: 'Poskytnout pouze strom souborů',
+    hu: 'Csak a fájlfát adja meg',
+    bg: 'Предоставяне само на дървото на файловете'
   }
 } as const

@@ -190,9 +190,16 @@ export const handle_copy_prompt = async (params: {
 
     const collected = await files_collector.collect_files({
       no_context: params.panel_provider.web_prompt_type == 'no-context',
-      shrink: is_in_find_relevant_files_prompt_type && shrink_source_code
+      shrink: is_in_find_relevant_files_prompt_type && shrink_source_code,
+      tree_only:
+        is_in_find_relevant_files_prompt_type &&
+        params.panel_provider.send_only_file_tree
     })
-    const context_text = collected.other_files + collected.recent_files
+
+    let context_text = collected.other_files + collected.recent_files
+    const is_tree_only =
+      is_in_find_relevant_files_prompt_type &&
+      params.panel_provider.send_only_file_tree
 
     const instructions = replace_selection_symbol(final_instruction)
 
@@ -299,13 +306,16 @@ export const handle_copy_prompt = async (params: {
       system_instructions_xml = `${instructions_to_use}\n${find_relevant_files_format}`
     }
 
-    const text = context_text
-      ? `<files>\n${context_text}</files>\n${skill_definitions}${
-          system_instructions_xml ? system_instructions_xml + '\n' : ''
-        }${processed_instructions}`
-      : `${
-          system_instructions_xml ? system_instructions_xml + '\n' : ''
-        }${skill_definitions}${processed_instructions}`
+    const formatted_context = context_text
+      ? is_tree_only
+        ? `${context_text}\n`
+        : `<files>\n${context_text}</files>\n`
+      : ''
+
+    const text = `${formatted_context}${skill_definitions}${
+      system_instructions_xml ? system_instructions_xml + '\n' : ''
+    }${processed_instructions}`
+
     vscode.env.clipboard.writeText(text.trim())
   } else {
     vscode.window.showWarningMessage(

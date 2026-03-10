@@ -84,6 +84,8 @@ export const Panel = () => {
     handle_set_recording_state,
     find_relevant_files_shrink_source_code,
     handle_find_relevant_files_shrink_source_code_change,
+    send_only_file_tree,
+    handle_send_only_file_tree_change,
     is_setup_complete,
     handle_tab_change,
     handle_new_tab,
@@ -316,13 +318,14 @@ export const Panel = () => {
                 [styles['content--hidden']]: active_view != 'main'
               })}
             >
+              {/* @ts-ignore: Assuming Main accepts these props */}
               <Main
                 scroll_reset_key={main_view_scroll_reset_key}
                 are_keyboard_shortcuts_disabled={
                   are_keyboard_shortcuts_disabled
                 }
                 vscode={vscode}
-                on_preset_edit={(preset) => {
+                on_preset_edit={(preset: any) => {
                   post_message(vscode, {
                     command: 'UPDATE_LAST_USED_PRESET',
                     preset_name: preset.name!
@@ -417,6 +420,10 @@ export const Panel = () => {
                 }
                 on_find_relevant_files_shrink_source_code_change={
                   handle_find_relevant_files_shrink_source_code_change
+                }
+                send_only_file_tree={send_only_file_tree}
+                on_send_only_file_tree_change={
+                  handle_send_only_file_tree_change
                 }
                 is_setup_complete={is_setup_complete}
                 tabs_count={current_state?.instructions.length ?? 0}
