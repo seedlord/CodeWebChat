@@ -1,5 +1,8 @@
 import * as vscode from 'vscode'
 import * as fs from 'fs'
+import * as path from 'path'
+import { SharedFileState } from '@/context/shared-file-state'
+import { extract_subtask_directives } from './utils/clipboard-parser/parsers/subtask-directives-parser'
 import {
   create_checkpoint,
   delete_checkpoint
@@ -80,6 +83,67 @@ export const apply_chat_response_command = (params: {
         )
         return
       }
+
+      // --- Subtask Chaining Directives ---
+      const directives = extract_subtask_directives(chat_response)
+      chat_response = directives.cleaned_response
+
+      if (directives.files_to_load.length > 0) {
+        const absolute_paths_to_load: string[] = []
+        const roots = params.workspace_provider.get_workspace_roots()
+
+        for (const file_path of directives.files_to_load) {
+          let found = false
+          if (fs.existsSync(file_path)) {
+            absolute_paths_to_load.push(file_path)
+            found = true
+            continue
+          }
+
+          for (const root of roots) {
+            const resolved = path.join(root, file_path)
+            if (fs.existsSync(resolved)) {
+              absolute_paths_to_load.push(resolved)
+              found = true
+              break
+            }
+
+            const parts = file_path.split(/[/\\]/)
+            if (parts.length > 1) {
+              const potential_workspace_name = parts[0]
+              if (
+                params.workspace_provider.get_workspace_name(root) ===
+                potential_workspace_name
+              ) {
+                const resolved_with_name = path.join(
+                  root,
+                  parts.slice(1).join(path.sep)
+                )
+                if (fs.existsSync(resolved_with_name)) {
+                  absolute_paths_to_load.push(resolved_with_name)
+                  found = true
+                  break
+                }
+              }
+            }
+          }
+        }
+
+        if (absolute_paths_to_load.length > 0) {
+          const shared_state = SharedFileState.get_instance()
+          const current_checked = shared_state.get_checked_files()
+          const new_checked = [
+            ...new Set([...current_checked, ...absolute_paths_to_load])
+          ]
+
+          await shared_state.apply_state({ files: new_checked })
+        }
+      }
+
+      if (directives.next_prompt) {
+        params.panel_provider.prefill_prompt(directives.next_prompt)
+      }
+      // -----------------------------------
 
       if (in_progress && !response_preview_promise_resolve) {
         return

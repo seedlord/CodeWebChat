@@ -1220,4 +1220,21 @@ export class PanelProvider implements vscode.WebviewViewProvider {
       caret_position: this.caret_position
     })
   }
+
+  public prefill_prompt(text: string) {
+    const target_state = this.active_instructions_state
+
+    target_state.instructions[target_state.active_index] = text
+    this.caret_position = text.length
+
+    this.send_message({
+      command: 'INSTRUCTIONS',
+      ask_about_context: this.ask_about_context_instructions,
+      edit_context: this.edit_context_instructions,
+      no_context: this.no_context_instructions,
+      code_at_cursor: this.code_at_cursor_instructions,
+      find_relevant_files: this.find_relevant_files_instructions,
+      caret_position: this.caret_position
+    })
+  }
 }
