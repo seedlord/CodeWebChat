@@ -142,11 +142,6 @@ export const apply_chat_response_command = (params: {
         }
       }
 
-      if (directives.next_prompt) {
-        params.panel_provider.prefill_prompt(directives.next_prompt)
-        applied_directives = true
-      }
-
       // FIX: Synchronisiere das args Objekt, damit tiefere CWC-Funktionen nicht den
       // ungefilterten Original-Text inkl. XML-Tags aus dem Clipboard lesen und abstürzen.
       if (args) {
@@ -168,6 +163,24 @@ export const apply_chat_response_command = (params: {
         is_single_root_folder_workspace
       })
 
+      const is_relevant_files = clipboard_items.some(
+        (item) => item.type == 'relevant-files'
+      )
+
+      // FIX: Wenn wir in "Find Relevant Files" sind, füllen wir den NEXT_PROMPT
+      // gezielt schon in den "edit-context"-State, da der Nutzer dorthin wechseln wird.
+      if (directives.next_prompt) {
+        if (is_relevant_files) {
+          params.panel_provider.prefill_prompt(
+            directives.next_prompt,
+            'edit-context'
+          )
+        } else {
+          params.panel_provider.prefill_prompt(directives.next_prompt)
+        }
+        applied_directives = true
+      }
+
       // FIX: Early Exit. Wenn wir Aufgaben ausgeführt haben, aber gar keine echten
       // Dateien zum Bearbeiten da sind (nur Text), beenden wir erfolgreich OHNE das Popup.
       const has_actionable_files = clipboard_items.some(
@@ -182,10 +195,6 @@ export const apply_chat_response_command = (params: {
         // Die Subtask-Befehle wurden erfolgreich angewendet, es gibt keinen Code anzuwenden.
         return
       }
-
-      const is_relevant_files = clipboard_items.some(
-        (item) => item.type == 'relevant-files'
-      )
 
       if (response_preview_promise_resolve && !is_relevant_files) {
         const history = params.panel_provider.response_history

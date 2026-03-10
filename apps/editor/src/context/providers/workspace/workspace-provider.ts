@@ -37,6 +37,7 @@ export interface IWorkspaceProvider {
   }
   readonly is_frf_mode: boolean
   readonly send_only_file_tree?: boolean
+  fire_is_calculating_tokens(is_calculating: boolean): void
 }
 
 export class WorkspaceProvider
@@ -54,6 +55,14 @@ export class WorkspaceProvider
   private _context: vscode.ExtensionContext
   private _workspace_roots: string[] = []
   private _workspace_names: string[] = []
+
+  private _on_is_calculating_tokens = new vscode.EventEmitter<boolean>()
+  readonly onIsCalculatingTokens: vscode.Event<boolean> =
+    this._on_is_calculating_tokens.event
+
+  public fire_is_calculating_tokens(is_calculating: boolean) {
+    this._on_is_calculating_tokens.fire(is_calculating)
+  }
 
   private _regular_state = {
     checked_items: new Map<string, vscode.TreeItemCheckboxState>(),
@@ -139,15 +148,22 @@ export class WorkspaceProvider
     this._workspace_view_collapsible_state = state
   }
 
-  public set_use_shrink_token_count(use_shrink: boolean) {
+  public async set_use_shrink_token_count(use_shrink: boolean) {
     if (this.use_shrink_token_count != use_shrink) {
+      this.fire_is_calculating_tokens(true)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
       this.use_shrink_token_count = use_shrink
       this.refresh()
+      this._dispatch_change_events()
     }
   }
 
-  public set_send_only_file_tree(send_only: boolean) {
+  public async set_send_only_file_tree(send_only: boolean) {
     if (this.send_only_file_tree != send_only) {
+      this.fire_is_calculating_tokens(true)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
       this.send_only_file_tree = send_only
       // WICHTIG: Cache leeren, damit die Token neu berechnet werden (schnell oder detailliert)
       this._token_calculator.clear_caches()
@@ -379,6 +395,7 @@ export class WorkspaceProvider
     this._gitignore_watcher.dispose()
     this._config_change_handler.dispose()
     this._on_did_change_checked_files.dispose()
+    this._on_is_calculating_tokens.dispose()
     if (this._tab_change_handler) {
       this._tab_change_handler.dispose()
     }

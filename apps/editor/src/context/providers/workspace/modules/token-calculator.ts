@@ -634,44 +634,63 @@ export class TokenCalculator implements vscode.Disposable {
   public async get_checked_files_token_count(options?: {
     exclude_file_path?: string
   }): Promise<{ total: number; shrink: number }> {
-    const checked_files = this._provider.get_checked_files()
-    const result = { total: 0, shrink: 0 }
+    this._provider.fire_is_calculating_tokens(true)
 
-    for (const file_path of checked_files) {
-      try {
-        if (
-          options?.exclude_file_path &&
-          file_path == options.exclude_file_path
-        ) {
-          continue
+    // Dem Event Loop eine Pause geben, damit das `IS_CALCULATING_TOKENS`-Event
+    // an das Frontend gefeuert werden kann, bevor alles blockiert wird.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    try {
+      const checked_files = this._provider.get_checked_files()
+      const result = { total: 0, shrink: 0 }
+
+      for (let i = 0; i < checked_files.length; i++) {
+        // Pausiere die Verarbeitung jeden 25. Durchlauf, damit die Extension responsiv bleibt.
+        if (i > 0 && i % 25 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
         }
 
-        if (fs.statSync(file_path).isFile()) {
-          if (this._file_token_counts.has(file_path)) {
-            result.total += this._file_token_counts.get(file_path)!
-            result.shrink += this._file_shrink_token_counts.get(file_path)!
-          } else {
-            const count = await this.calculate_file_tokens(file_path)
-            result.total += count.total
-            result.shrink += count.shrink
+        const file_path = checked_files[i]
+        try {
+          if (
+            options?.exclude_file_path &&
+            file_path == options.exclude_file_path
+          ) {
+            continue
           }
+
+          // Use promises instead of fs.statSync to prevent blocking the event loop
+          const stat = await fs.promises.stat(file_path).catch(() => null)
+
+          if (stat && stat.isFile()) {
+            if (this._file_token_counts.has(file_path)) {
+              result.total += this._file_token_counts.get(file_path)!
+              result.shrink += this._file_shrink_token_counts.get(file_path)!
+            } else {
+              const count = await this.calculate_file_tokens(file_path)
+              result.total += count.total
+              result.shrink += count.shrink
+            }
+          }
+        } catch (error) {
+          Logger.error({
+            function_name: 'get_checked_files_token_count',
+            message: `Error accessing file ${file_path} for token count`,
+            data: error
+          })
         }
-      } catch (error) {
-        Logger.error({
-          function_name: 'get_checked_files_token_count',
-          message: `Error accessing file ${file_path} for token count`,
-          data: error
-        })
       }
-    }
 
-    // Wenn der File Tree Modus an ist, schätzen wir ~8 Tokens on top für den XML-Wrapper
-    if (this._provider.send_only_file_tree && result.total > 0) {
-      result.total += 8
-      result.shrink += 8
-    }
+      // Wenn der File Tree Modus an ist, schätzen wir ~8 Tokens on top für den XML-Wrapper
+      if (this._provider.send_only_file_tree && result.total > 0) {
+        result.total += 8
+        result.shrink += 8
+      }
 
-    return result
+      return result
+    } finally {
+      this._provider.fire_is_calculating_tokens(false)
+    }
   }
 
   public dispose() {

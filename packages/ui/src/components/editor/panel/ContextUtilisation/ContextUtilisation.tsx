@@ -5,6 +5,7 @@ type Props = {
   current_context_size: number
   context_size_warning_threshold: number
   is_context_disabled?: boolean
+  is_calculating_tokens?: boolean
 }
 
 const format_tokens = (tokens: number): string => {
@@ -63,11 +64,24 @@ export const ContextUtilisation: React.FC<Props> = (props) => {
           className={cn(styles.bar__progress, {
             [styles['bar__progress--warning']]: is_above_threshold
           })}
-          style={{ width: `${progress}%` }}
+          style={{
+            width: props.is_calculating_tokens ? '100%' : `${progress}%`,
+            opacity: props.is_calculating_tokens ? 0.5 : 1,
+            transition: props.is_calculating_tokens
+              ? 'opacity 0.5s ease-in-out'
+              : 'width 0.3s ease'
+          }}
         />
       </div>
-      <span className={styles.label} title={title_text}>
-        {formatted_current_size} tokens in context
+      <span
+        className={styles.label}
+        title={
+          props.is_calculating_tokens ? 'Recounting tokens...' : title_text
+        }
+      >
+        {props.is_calculating_tokens
+          ? 'Recounting tokens...'
+          : `${formatted_current_size} tokens in context`}
       </span>
     </div>
   )

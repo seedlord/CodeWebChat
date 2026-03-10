@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import styles from './MainView.module.scss'
 import { Configurations as UiConfigurations } from '@ui/components/editor/panel/Configurations'
 import { Presets as UiPresets } from '@ui/components/editor/panel/Presets'
@@ -133,6 +134,20 @@ type Props = {
 
 export const MainView: React.FC<Props> = (props) => {
   const { t } = use_translation()
+  const [is_calculating_tokens, set_is_calculating_tokens] = useState(false)
+
+  useEffect(() => {
+    const handle_message = (event: MessageEvent) => {
+      const message = event.data
+      if (message.command === 'IS_CALCULATING_TOKENS') {
+        set_is_calculating_tokens(message.is_calculating)
+      } else if (message.command === 'TOKEN_COUNT_UPDATED') {
+        set_is_calculating_tokens(false) // Safety net: Always hide when new count arrives
+      }
+    }
+    window.addEventListener('message', handle_message)
+    return () => window.removeEventListener('message', handle_message)
+  }, [])
 
   const is_in_code_completions_prompt_type =
     (props.mode == MODE.WEB && props.web_prompt_type == 'code-at-cursor') ||
@@ -224,7 +239,10 @@ export const MainView: React.FC<Props> = (props) => {
             <div className={styles['shrink-source-code-checkbox']}>
               <UiCheckbox
                 checked={props.send_only_file_tree}
-                on_change={props.on_send_only_file_tree_change}
+                on_change={(val) => {
+                  set_is_calculating_tokens(true) // Optimistisches Update
+                  props.on_send_only_file_tree_change(val)
+                }}
                 id="send-only-file-tree"
               />
               <label htmlFor="send-only-file-tree">
@@ -235,9 +253,10 @@ export const MainView: React.FC<Props> = (props) => {
             <div className={styles['shrink-source-code-checkbox']}>
               <UiCheckbox
                 checked={props.find_relevant_files_shrink_source_code}
-                on_change={
-                  props.on_find_relevant_files_shrink_source_code_change
-                }
+                on_change={(val) => {
+                  set_is_calculating_tokens(true) // Optimistisches Update
+                  props.on_find_relevant_files_shrink_source_code_change(val)
+                }}
                 id="shrink-source-code"
                 disabled={props.send_only_file_tree}
               />
@@ -353,6 +372,7 @@ export const MainView: React.FC<Props> = (props) => {
               props.context_size_warning_threshold
             }
             is_context_disabled={is_in_no_context_prompt_type}
+            is_calculating_tokens={is_calculating_tokens}
           />
         </div>
 

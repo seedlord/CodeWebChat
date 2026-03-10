@@ -561,6 +561,15 @@ export class PanelProvider implements vscode.WebviewViewProvider {
       }
     })
 
+    this.workspace_provider.onIsCalculatingTokens((is_calculating) => {
+      if (this._webview_view) {
+        this.send_message({
+          command: 'IS_CALCULATING_TOKENS',
+          is_calculating
+        })
+      }
+    })
+
     this.context.subscriptions.push(this._config_listener)
 
     const update_editor_state = () => {
@@ -1260,11 +1269,27 @@ export class PanelProvider implements vscode.WebviewViewProvider {
     })
   }
 
-  public prefill_prompt(text: string) {
-    const target_state = this.active_instructions_state
+  public prefill_prompt(
+    text: string,
+    target_mode?: WebPromptType | ApiPromptType
+  ) {
+    const target_state = target_mode
+      ? target_mode === 'ask-about-context'
+        ? this.ask_about_context_instructions
+        : target_mode === 'edit-context'
+          ? this.edit_context_instructions
+          : target_mode === 'no-context'
+            ? this.no_context_instructions
+            : target_mode === 'code-at-cursor'
+              ? this.code_at_cursor_instructions
+              : this.find_relevant_files_instructions
+      : this.active_instructions_state
 
     target_state.instructions[target_state.active_index] = text
-    this.caret_position = text.length
+
+    if (!target_mode || target_mode === this.prompt_type) {
+      this.caret_position = text.length
+    }
 
     this.send_message({
       command: 'INSTRUCTIONS',

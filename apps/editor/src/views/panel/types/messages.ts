@@ -986,6 +986,11 @@ export interface ReturnHomeMessage extends BaseMessage {
   command: 'RETURN_HOME'
 }
 
+export interface IsCalculatingTokensMessage extends BaseMessage {
+  command: 'IS_CALCULATING_TOKENS'
+  is_calculating: boolean
+}
+
 export type BackendMessage =
   | InstructionsMessage
   | FocusPromptFieldMessage
@@ -1039,3 +1044,4 @@ export type BackendMessage =
   | ReturnHomeMessage
   | ShowRelevantFilesModalMessage
   | ShowAutoClosingWithActionsModalMessage
+  | IsCalculatingTokensMessage
