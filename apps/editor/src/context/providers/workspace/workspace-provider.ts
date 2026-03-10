@@ -119,6 +119,8 @@ export class WorkspaceProvider
   public gitignore_initialization: Promise<void>
   public ranges_initialization: Promise<void>
   public use_shrink_token_count: boolean = false
+  public send_only_file_tree: boolean = false
+
   private _context_view_collapsible_state: vscode.TreeItemCollapsibleState =
     vscode.TreeItemCollapsibleState.Expanded
   private _workspace_view_collapsible_state: vscode.TreeItemCollapsibleState =
@@ -140,6 +142,14 @@ export class WorkspaceProvider
     if (this.use_shrink_token_count != use_shrink) {
       this.use_shrink_token_count = use_shrink
       this.refresh()
+    }
+  }
+
+  public set_send_only_file_tree(send_only: boolean) {
+    if (this.send_only_file_tree != send_only) {
+      this.send_only_file_tree = send_only
+      // Wir dispatchen Change-Events, damit das UI die Tokens unten im Badge neu kalkuliert
+      this._dispatch_change_events()
     }
   }
 
@@ -1560,9 +1570,10 @@ export class WorkspaceProvider
       const workspace_root = this.get_workspace_root_for_file(gitignore_path)
       if (!workspace_root) continue
 
-      const relative_gitignore_path = path
-        .relative(workspace_root, path.dirname(gitignore_path))
-        .replace(/\\/g, '/')
+      const relative_gitignore_path = path.relative(
+        workspace_root,
+        path.dirname(gitignore_path)
+      )
 
       try {
         const gitignore_content = fs.readFileSync(gitignore_path, 'utf-8')
@@ -1590,7 +1601,6 @@ export class WorkspaceProvider
 
     // After updating gitignore rules, clear token caches since exclusions may have changed
     this._token_calculator.clear_caches()
-
     this._dispatch_change_events()
   }
 
@@ -1692,6 +1702,20 @@ export class WorkspaceProvider
   public async get_checked_files_token_count(options?: {
     exclude_file_path?: string
   }): Promise<{ total: number; shrink: number }> {
+    // === NEU: Wenn "Send only file tree" an ist, kein Crunching ===
+    if (this.send_only_file_tree) {
+      const checked_files = this.get_checked_files()
+      let path_chars = 0
+      for (const file of checked_files) {
+        if (options?.exclude_file_path && file === options.exclude_file_path)
+          continue
+        path_chars += file.length + 30 // Approximation: Pfad + " (~XXX tokens)"
+      }
+      const tokens = Math.floor(path_chars / 4)
+      return { total: tokens, shrink: tokens }
+    }
+    // ==============================================================
+
     return this._token_calculator.get_checked_files_token_count(options)
   }
 

@@ -55,7 +55,7 @@ export class FilesCollector {
       const tree_string = this._generate_tree_string(context_files)
       return {
         other_files: tree_string,
-        recent_files: '' // Bleibt leer, alles geht in den Haupt-String
+        recent_files: ''
       }
     }
 
@@ -124,28 +124,35 @@ export class FilesCollector {
     }
   }
 
-  // Generiert eine flache Liste aller ausgewählten Dateipfade
+  // Generiert eine flache Liste aller ausgewählten Dateipfade INKLUSIVE geschätzter Tokens
   private _generate_tree_string(file_paths: string[]): string {
-    const relative_paths = file_paths
+    const paths_with_sizes = file_paths
       .map((file_path) => {
         const workspace_root = this._get_workspace_root_for_file(file_path)
-        if (!workspace_root) return file_path.replace(/\\/g, '/')
+        let relative_path = workspace_root
+          ? path.relative(workspace_root, file_path).replace(/\\/g, '/')
+          : file_path.replace(/\\/g, '/')
 
-        const relative_path = path
-          .relative(workspace_root, file_path)
-          .replace(/\\/g, '/')
-        if (this.workspace_roots.length > 1) {
+        if (this.workspace_roots.length > 1 && workspace_root) {
           const workspace_name =
             this.workspace_provider.get_workspace_name(workspace_root)
-          return `${workspace_name}/${relative_path}`
+          relative_path = `${workspace_name}/${relative_path}`
         }
-        return relative_path
+
+        try {
+          const stats = fs.statSync(file_path)
+          // Schätzung: 1 Byte ist ca. 1 Zeichen. 4 Zeichen sind ca. 1 Token.
+          const estimated_tokens = Math.floor(stats.size / 4)
+          return `${relative_path} (~${estimated_tokens} tokens)`
+        } catch {
+          return relative_path
+        }
       })
       .sort()
 
-    if (relative_paths.length === 0) return ''
+    if (paths_with_sizes.length === 0) return ''
 
-    return `<workspace_file_tree>\n${relative_paths.join('\n')}\n</workspace_file_tree>\n`
+    return `<workspace_file_tree>\n${paths_with_sizes.join('\n')}\n</workspace_file_tree>\n`
   }
 
   private _get_workspace_root_for_file(file_path: string): string | undefined {

@@ -262,6 +262,16 @@ export class PanelProvider implements vscode.WebviewViewProvider {
     this.api_manager = api_manager
   }
 
+  public update_providers_send_only_file_tree_mode() {
+    const is_find_relevant_files =
+      (this.mode == MODE.WEB &&
+        this.web_prompt_type == 'find-relevant-files') ||
+      (this.mode == MODE.API && this.api_prompt_type == 'find-relevant-files')
+    const use_send_only = is_find_relevant_files && this.send_only_file_tree
+
+    this.workspace_provider.set_send_only_file_tree(use_send_only)
+  }
+
   public update_providers_shrink_mode() {
     const shrink_source_code = this.context.workspaceState.get<boolean>(
       FIND_RELEVANT_FILES_SHRINK_SOURCE_CODE_STATE_KEY,
@@ -308,6 +318,7 @@ export class PanelProvider implements vscode.WebviewViewProvider {
       })
     }
     this.update_providers_shrink_mode()
+    this.update_providers_send_only_file_tree_mode()
     this.update_providers_context_state()
   }
 
@@ -442,6 +453,7 @@ export class PanelProvider implements vscode.WebviewViewProvider {
     )
 
     this.update_providers_shrink_mode()
+    this.update_providers_send_only_file_tree_mode()
     this.update_providers_context_state()
 
     vscode.window.onDidChangeWindowState(async (e) => {
@@ -895,12 +907,14 @@ export class PanelProvider implements vscode.WebviewViewProvider {
           } else if (message.command == 'SAVE_WEB_PROMPT_TYPE') {
             await handle_save_web_prompt_type(this, message.prompt_type)
             this.update_providers_shrink_mode()
+            this.update_providers_send_only_file_tree_mode()
             this.update_providers_context_state()
           } else if (message.command == 'GET_API_PROMPT_TYPE') {
             handle_get_api_prompt_type(this)
           } else if (message.command == 'SAVE_API_PROMPT_TYPE') {
             await handle_save_api_prompt_type(this, message.prompt_type)
             this.update_providers_shrink_mode()
+            this.update_providers_send_only_file_tree_mode()
             this.update_providers_context_state()
           } else if (message.command == 'GET_EDIT_FORMAT_INSTRUCTIONS') {
             handle_get_edit_format_instructions(this)
@@ -913,6 +927,7 @@ export class PanelProvider implements vscode.WebviewViewProvider {
           } else if (message.command == 'SAVE_MODE') {
             await handle_save_mode(this, message)
             this.update_providers_shrink_mode()
+            this.update_providers_send_only_file_tree_mode()
             this.update_providers_context_state()
           } else if (message.command == 'GET_MODE') {
             handle_get_mode(this)
@@ -1041,6 +1056,7 @@ export class PanelProvider implements vscode.WebviewViewProvider {
               SEND_ONLY_FILE_TREE_STATE_KEY,
               message.send_only_file_tree
             )
+            this.update_providers_send_only_file_tree_mode()
             this.send_message({
               command: 'SEND_ONLY_FILE_TREE',
               send_only_file_tree: this.send_only_file_tree
