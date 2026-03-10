@@ -11,7 +11,8 @@ export const extract_subtask_directives = (
   const files_to_load: string[] = []
   let next_prompt: string | null = null
 
-  const loadFilesRegex = /<LOAD_FILES>\s*([\s\S]*?)\s*<\/LOAD_FILES>/gi
+  // Erlaubt auch Tags mit Attributen, falls das LLM kreativ wird (z.B. <LOAD_FILES format="paths">)
+  const loadFilesRegex = /<LOAD_FILES[^>]*>\s*([\s\S]*?)\s*<\/LOAD_FILES>/gi
   cleaned_response = cleaned_response.replace(
     loadFilesRegex,
     (match, content) => {
@@ -24,7 +25,7 @@ export const extract_subtask_directives = (
     }
   )
 
-  const nextPromptRegex = /<NEXT_PROMPT>\s*([\s\S]*?)\s*<\/NEXT_PROMPT>/gi
+  const nextPromptRegex = /<NEXT_PROMPT[^>]*>\s*([\s\S]*?)\s*<\/NEXT_PROMPT>/gi
   cleaned_response = cleaned_response.replace(
     nextPromptRegex,
     (match, content) => {

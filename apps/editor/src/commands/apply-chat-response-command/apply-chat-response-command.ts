@@ -87,6 +87,7 @@ export const apply_chat_response_command = (params: {
       // --- Subtask Chaining Directives ---
       const directives = extract_subtask_directives(chat_response)
       chat_response = directives.cleaned_response
+      let applied_directives = false
 
       if (directives.files_to_load.length > 0) {
         const absolute_paths_to_load: string[] = []
@@ -137,11 +138,21 @@ export const apply_chat_response_command = (params: {
           ]
 
           await shared_state.apply_state({ files: new_checked })
+          applied_directives = true
         }
       }
 
       if (directives.next_prompt) {
         params.panel_provider.prefill_prompt(directives.next_prompt)
+        applied_directives = true
+      }
+
+      // FIX: Synchronisiere das args Objekt, damit tiefere CWC-Funktionen nicht den
+      // ungefilterten Original-Text inkl. XML-Tags aus dem Clipboard lesen und abstürzen.
+      if (args) {
+        args.response = chat_response
+      } else {
+        args = { response: chat_response }
       }
       // -----------------------------------
 
@@ -151,10 +162,27 @@ export const apply_chat_response_command = (params: {
 
       const is_single_root_folder_workspace =
         (vscode.workspace.workspaceFolders?.length ?? 0) <= 1
+
       const clipboard_items = parse_response({
         response: chat_response,
         is_single_root_folder_workspace
       })
+
+      // FIX: Early Exit. Wenn wir Aufgaben ausgeführt haben, aber gar keine echten
+      // Dateien zum Bearbeiten da sind (nur Text), beenden wir erfolgreich OHNE das Popup.
+      const has_actionable_files = clipboard_items.some(
+        (item) =>
+          item.type === 'file' ||
+          item.type === 'diff' ||
+          item.type === 'code-at-cursor' ||
+          item.type === 'relevant-files'
+      )
+
+      if (applied_directives && !has_actionable_files) {
+        // Die Subtask-Befehle wurden erfolgreich angewendet, es gibt keinen Code anzuwenden.
+        return
+      }
+
       const is_relevant_files = clipboard_items.some(
         (item) => item.type == 'relevant-files'
       )
