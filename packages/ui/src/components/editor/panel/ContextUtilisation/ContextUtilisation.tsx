@@ -65,11 +65,9 @@ export const ContextUtilisation: React.FC<Props> = (props) => {
             [styles['bar__progress--warning']]: is_above_threshold
           })}
           style={{
-            width: props.is_calculating_tokens ? '100%' : `${progress}%`,
+            width: `${progress}%`,
             opacity: props.is_calculating_tokens ? 0.5 : 1,
-            transition: props.is_calculating_tokens
-              ? 'opacity 0.5s ease-in-out'
-              : 'width 0.3s ease'
+            transition: 'width 0.3s ease, opacity 0.5s ease-in-out'
           }}
         />
       </div>
