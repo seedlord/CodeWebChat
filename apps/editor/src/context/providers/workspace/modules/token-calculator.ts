@@ -634,19 +634,21 @@ export class TokenCalculator implements vscode.Disposable {
   public async get_checked_files_token_count(options?: {
     exclude_file_path?: string
   }): Promise<{ total: number; shrink: number }> {
-    this._provider.fire_is_calculating_tokens(true)
-
-    // Dem Event Loop eine Pause geben, damit das `IS_CALCULATING_TOKENS`-Event
-    // an das Frontend gefeuert werden kann, bevor alles blockiert wird.
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    let fired = false
+    // Nur Indikator zeigen, wenn das Kalkulieren wirklich länger dauert (> 150ms)
+    const timer = setTimeout(() => {
+      this._provider.fire_is_calculating_tokens(true)
+      fired = true
+    }, 150)
 
     try {
       const checked_files = this._provider.get_checked_files()
       const result = { total: 0, shrink: 0 }
 
       for (let i = 0; i < checked_files.length; i++) {
-        // Pausiere die Verarbeitung jeden 25. Durchlauf, damit die Extension responsiv bleibt.
-        if (i > 0 && i % 25 === 0) {
+        // Pausiere die Verarbeitung jeden 50. Durchlauf kurz, damit der Event-Loop
+        // den Timer auslösen kann, falls es zu lange dauert.
+        if (i > 0 && i % 50 === 0) {
           await new Promise((resolve) => setTimeout(resolve, 0))
         }
 
@@ -659,7 +661,7 @@ export class TokenCalculator implements vscode.Disposable {
             continue
           }
 
-          // Use promises instead of fs.statSync to prevent blocking the event loop
+          // Verhindert Hänger bei nicht erreichbaren Dateien
           const stat = await fs.promises.stat(file_path).catch(() => null)
 
           if (stat && stat.isFile()) {
@@ -689,7 +691,10 @@ export class TokenCalculator implements vscode.Disposable {
 
       return result
     } finally {
-      this._provider.fire_is_calculating_tokens(false)
+      clearTimeout(timer)
+      if (fired) {
+        this._provider.fire_is_calculating_tokens(false)
+      }
     }
   }
 

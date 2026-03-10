@@ -148,22 +148,16 @@ export class WorkspaceProvider
     this._workspace_view_collapsible_state = state
   }
 
-  public async set_use_shrink_token_count(use_shrink: boolean) {
+  public set_use_shrink_token_count(use_shrink: boolean) {
     if (this.use_shrink_token_count != use_shrink) {
-      this.fire_is_calculating_tokens(true)
-      await new Promise((resolve) => setTimeout(resolve, 10))
-
       this.use_shrink_token_count = use_shrink
       this.refresh()
       this._dispatch_change_events()
     }
   }
 
-  public async set_send_only_file_tree(send_only: boolean) {
+  public set_send_only_file_tree(send_only: boolean) {
     if (this.send_only_file_tree != send_only) {
-      this.fire_is_calculating_tokens(true)
-      await new Promise((resolve) => setTimeout(resolve, 10))
-
       this.send_only_file_tree = send_only
       // WICHTIG: Cache leeren, damit die Token neu berechnet werden (schnell oder detailliert)
       this._token_calculator.clear_caches()
