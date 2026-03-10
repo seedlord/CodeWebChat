@@ -709,10 +709,16 @@ export class PanelProvider implements vscode.WebviewViewProvider {
   public send_context_files() {
     const workspace_files = this.workspace_provider.get_checked_files()
 
+    // Limit to prevent massive IPC payloads and regex compilation freezes in UI
+    const files_to_process =
+      workspace_files.length > 2000
+        ? workspace_files.slice(0, 2000)
+        : workspace_files
+
     const is_multi_root =
       this.workspace_provider.get_workspace_roots().length > 1
 
-    const file_paths = workspace_files.map((file_path) => {
+    const file_paths = files_to_process.map((file_path) => {
       const workspace_root =
         this.workspace_provider.get_workspace_root_for_file(file_path)
       if (!workspace_root) {

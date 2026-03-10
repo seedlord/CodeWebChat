@@ -215,10 +215,16 @@ export class SharedFileState {
       const open_editor_uris = this.get_open_editor_uris()
       const open_editor_paths = open_editor_uris.map((uri) => uri.fsPath)
 
+      // Fetch as a set for O(1) performance during traversal operations
+      const workspace_checked_paths_set = new Set(
+        this._workspace_provider.get_all_checked_paths()
+      )
+      const is_checked = (file: string) =>
+        this.is_file_checked_in_workspace(file, workspace_checked_paths_set)
+
       if (this._synchronizing_provider == 'workspace') {
         for (const file of open_editor_paths) {
-          const is_checked_in_workspace =
-            this.is_file_checked_in_workspace(file)
+          const is_checked_in_workspace = is_checked(file)
           const is_checked_in_open_editors =
             open_editors_checked_files.includes(file)
 
@@ -260,8 +266,7 @@ export class SharedFileState {
       // If no specific provider triggered the sync, do a full sync
       else {
         for (const file of open_editor_paths) {
-          const is_checked_in_workspace =
-            this.is_file_checked_in_workspace(file)
+          const is_checked_in_workspace = is_checked(file)
           const is_checked_in_open_editors =
             open_editors_checked_files.includes(file)
 
@@ -297,12 +302,13 @@ export class SharedFileState {
   }
 
   // Check if file is checked in workspace, considering parent directories
-  private is_file_checked_in_workspace(file_path: string): boolean {
+  private is_file_checked_in_workspace(
+    file_path: string,
+    workspace_checked_paths_set: Set<string>
+  ): boolean {
     if (!this._workspace_provider) return false
 
-    const workspace_checked_files = this._workspace_provider.get_checked_files()
-
-    if (workspace_checked_files.includes(file_path)) {
+    if (workspace_checked_paths_set.has(file_path)) {
       return true
     }
 
@@ -314,7 +320,7 @@ export class SharedFileState {
 
     let current_dir = path.dirname(file_path)
     while (current_dir.startsWith(workspace_root)) {
-      if (workspace_checked_files.includes(current_dir)) {
+      if (workspace_checked_paths_set.has(current_dir)) {
         return true
       }
       current_dir = path.dirname(current_dir)

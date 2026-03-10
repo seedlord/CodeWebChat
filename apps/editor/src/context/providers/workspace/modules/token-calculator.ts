@@ -37,6 +37,13 @@ export class TokenCalculator implements vscode.Disposable {
   private _token_cache_update_timeout: NodeJS.Timeout | null = null
   private _has_token_counts_cache_updated_once = false
 
+  private _yield_counter = 0
+  private async _maybe_yield() {
+    if (++this._yield_counter % 25 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+  }
+
   constructor(
     private _provider: IWorkspaceProvider,
     private _context: vscode.ExtensionContext
@@ -263,7 +270,6 @@ export class TokenCalculator implements vscode.Disposable {
       }
     }
 
-    // 1. FAST PATH for Send Only File Tree Mode
     if (this._provider.send_only_file_tree) {
       const workspace_root =
         this._provider.get_workspace_root_for_file(file_path)
@@ -285,11 +291,9 @@ export class TokenCalculator implements vscode.Disposable {
         estimated_size = Math.floor(stats.size / 4)
       } catch {}
 
-      // Estimate token count just for the filename string (approx 1 token per 4 chars)
       const line = `${relative_path} (~${estimated_size} tokens)\n`
       const token_count = Math.max(1, Math.floor(line.length / 4))
 
-      // Cache in memory ONLY so we don't poison the persistent cache with string sizes
       this._file_token_counts.set(file_path, token_count)
       this._file_shrink_token_counts.set(file_path, token_count)
 
@@ -452,6 +456,8 @@ export class TokenCalculator implements vscode.Disposable {
       let total_shrink_tokens = 0
 
       for (const entry of entries) {
+        await this._maybe_yield()
+
         const full_path = path.join(dir_path, entry.name)
 
         const file_workspace_root =
@@ -478,19 +484,16 @@ export class TokenCalculator implements vscode.Disposable {
         const is_symbolic_link = entry.isSymbolicLink()
         let is_broken_link = false
 
-        // Resolve symbolic link to determine if it points to a directory
         if (is_symbolic_link) {
           try {
             const stats = await fs.promises.stat(full_path)
             is_directory = stats.isDirectory()
           } catch {
-            // The symlink is broken
             is_broken_link = true
           }
         }
 
         if (is_directory && !is_broken_link) {
-          // Recurse into subdirectory (including resolved symlinks that are directories)
           const counts = await this.calculate_directory_tokens(full_path)
           total_tokens += counts.total
           total_shrink_tokens += counts.shrink
@@ -498,7 +501,6 @@ export class TokenCalculator implements vscode.Disposable {
           entry.isFile() ||
           (is_symbolic_link && !is_broken_link && !is_directory)
         ) {
-          // Add file tokens (including resolved symlinks that are files)
           const counts = await this.calculate_file_tokens(full_path)
           total_tokens += counts.total
           total_shrink_tokens += counts.shrink
@@ -564,6 +566,8 @@ export class TokenCalculator implements vscode.Disposable {
         withFileTypes: true
       })
       for (const entry of entries) {
+        await this._maybe_yield()
+
         const full_path = path.join(dir_path, entry.name)
 
         const file_workspace_root =
@@ -635,22 +639,17 @@ export class TokenCalculator implements vscode.Disposable {
     exclude_file_path?: string
   }): Promise<{ total: number; shrink: number }> {
     let fired = false
-    // Nur Indikator zeigen, wenn das Kalkulieren wirklich länger dauert (> 150ms)
     const timer = setTimeout(() => {
       this._provider.fire_is_calculating_tokens(true)
       fired = true
-    }, 150)
+    }, 50)
 
     try {
       const checked_files = this._provider.get_checked_files()
       const result = { total: 0, shrink: 0 }
 
       for (let i = 0; i < checked_files.length; i++) {
-        // Pausiere die Verarbeitung jeden 50. Durchlauf kurz, damit der Event-Loop
-        // den Timer auslösen kann, falls es zu lange dauert.
-        if (i > 0 && i % 50 === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 0))
-        }
+        await this._maybe_yield()
 
         const file_path = checked_files[i]
         try {
@@ -661,7 +660,6 @@ export class TokenCalculator implements vscode.Disposable {
             continue
           }
 
-          // Verhindert Hänger bei nicht erreichbaren Dateien
           const stat = await fs.promises.stat(file_path).catch(() => null)
 
           if (stat && stat.isFile()) {
@@ -683,7 +681,6 @@ export class TokenCalculator implements vscode.Disposable {
         }
       }
 
-      // Wenn der File Tree Modus an ist, schätzen wir ~8 Tokens on top für den XML-Wrapper
       if (this._provider.send_only_file_tree && result.total > 0) {
         result.total += 8
         result.shrink += 8

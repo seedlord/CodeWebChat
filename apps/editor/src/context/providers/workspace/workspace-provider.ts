@@ -38,6 +38,7 @@ export interface IWorkspaceProvider {
   readonly is_frf_mode: boolean
   readonly send_only_file_tree?: boolean
   fire_is_calculating_tokens(is_calculating: boolean): void
+  get_all_checked_paths(): string[]
 }
 
 export class WorkspaceProvider
@@ -60,6 +61,13 @@ export class WorkspaceProvider
   readonly onIsCalculatingTokens: vscode.Event<boolean> =
     this._on_is_calculating_tokens.event
 
+  private _yield_counter = 0
+  private async _maybe_yield() {
+    if (++this._yield_counter % 25 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+  }
+
   public fire_is_calculating_tokens(is_calculating: boolean) {
     this._on_is_calculating_tokens.fire(is_calculating)
   }
@@ -67,12 +75,14 @@ export class WorkspaceProvider
   private _regular_state = {
     checked_items: new Map<string, vscode.TreeItemCheckboxState>(),
     checked_timestamps: new Map<string, number>(),
-    partially_checked_dirs: new Set<string>()
+    partially_checked_dirs: new Set<string>(),
+    checked_directories: new Set<string>()
   }
   private _frf_state = {
     checked_items: new Map<string, vscode.TreeItemCheckboxState>(),
     checked_timestamps: new Map<string, number>(),
-    partially_checked_dirs: new Set<string>()
+    partially_checked_dirs: new Set<string>(),
+    checked_directories: new Set<string>()
   }
   private _is_frf_mode: boolean = false
 
@@ -106,6 +116,15 @@ export class WorkspaceProvider
   private set _partially_checked_dirs(val) {
     if (this._is_frf_mode) this._frf_state.partially_checked_dirs = val
     else this._regular_state.partially_checked_dirs = val
+  }
+  private get _checked_directories() {
+    return this._is_frf_mode
+      ? this._frf_state.checked_directories
+      : this._regular_state.checked_directories
+  }
+  private set _checked_directories(val) {
+    if (this._is_frf_mode) this._frf_state.checked_directories = val
+    else this._regular_state.checked_directories = val
   }
 
   private _combined_gitignore = ignore()
@@ -148,21 +167,24 @@ export class WorkspaceProvider
     this._workspace_view_collapsible_state = state
   }
 
-  public set_use_shrink_token_count(use_shrink: boolean) {
+  public async set_use_shrink_token_count(use_shrink: boolean) {
     if (this.use_shrink_token_count != use_shrink) {
+      this.fire_is_calculating_tokens(true)
+      await new Promise((resolve) => setTimeout(resolve, 50)) // Dem UI Zeit zum Rendern geben
+
       this.use_shrink_token_count = use_shrink
-      this.refresh()
-      this._dispatch_change_events()
+      this._dispatch_change_events() // triggert auch refresh()
     }
   }
 
-  public set_send_only_file_tree(send_only: boolean) {
+  public async set_send_only_file_tree(send_only: boolean) {
     if (this.send_only_file_tree != send_only) {
+      this.fire_is_calculating_tokens(true)
+      await new Promise((resolve) => setTimeout(resolve, 50)) // Dem UI Zeit zum Rendern geben
+
       this.send_only_file_tree = send_only
-      // WICHTIG: Cache leeren, damit die Token neu berechnet werden (schnell oder detailliert)
       this._token_calculator.clear_caches()
-      this.refresh()
-      this._dispatch_change_events()
+      this._dispatch_change_events() // triggert auch refresh()
     }
   }
 
@@ -174,6 +196,7 @@ export class WorkspaceProvider
       this._checked_items.clear()
       this._checked_timestamps.clear()
       this._partially_checked_dirs.clear()
+      this._checked_directories.clear()
     }
 
     this._token_calculator.clear_selected_counts()
@@ -511,6 +534,7 @@ export class WorkspaceProvider
     if (!fs.existsSync(changed_file_path)) {
       this._file_workspace_map.delete(changed_file_path)
       this._checked_items.delete(changed_file_path)
+      this._checked_directories.delete(changed_file_path)
       this._checked_timestamps.delete(changed_file_path)
       this._partially_checked_dirs.delete(changed_file_path)
 
@@ -569,18 +593,20 @@ export class WorkspaceProvider
           created_file_path,
           vscode.TreeItemCheckboxState.Checked
         )
-        this._checked_timestamps.set(
-          created_file_path,
-          Math.floor(Date.now() / 1000)
-        )
-
         if (is_directory) {
+          this._checked_directories.add(created_file_path)
           await this._update_directory_check_state(
             created_file_path,
             vscode.TreeItemCheckboxState.Checked,
             false
           )
+        } else {
+          this._checked_directories.delete(created_file_path)
         }
+        this._checked_timestamps.set(
+          created_file_path,
+          Math.floor(Date.now() / 1000)
+        )
       }
 
       let dir_path = parent_dir
@@ -630,6 +656,7 @@ export class WorkspaceProvider
       this._checked_items.clear()
       this._checked_timestamps.clear()
       this._partially_checked_dirs.clear()
+      this._checked_directories.clear()
       this._token_calculator.clear_selected_counts()
     } else {
       // Get a list of currently open files to preserve their check state
@@ -661,6 +688,7 @@ export class WorkspaceProvider
       this._checked_timestamps = new_checked_timestamps
 
       this._partially_checked_dirs.clear()
+      this._checked_directories.clear() // Open files are never directories
       this._token_calculator.clear_selected_counts()
 
       const dirs_to_update = new Set<string>()
@@ -1064,6 +1092,8 @@ export class WorkspaceProvider
       })
 
       for (const entry of dir_entries) {
+        await this._maybe_yield()
+
         const full_path = path.join(dir_path, entry.name)
 
         // Exclude nested workspace folders from appearing in parent workspace trees
@@ -1208,6 +1238,12 @@ export class WorkspaceProvider
     }
 
     this._checked_items.set(key, state)
+    if (item.isDirectory) {
+      this._checked_directories.add(key)
+    } else {
+      this._checked_directories.delete(key)
+    }
+
     if (state === vscode.TreeItemCheckboxState.Checked) {
       if (!this._checked_timestamps.has(key)) {
         this._checked_timestamps.set(key, Math.floor(Date.now() / 1000))
@@ -1252,6 +1288,7 @@ export class WorkspaceProvider
           dir_path,
           vscode.TreeItemCheckboxState.Unchecked
         )
+        this._checked_directories.delete(dir_path)
         this._partially_checked_dirs.delete(dir_path)
         return
       }
@@ -1311,6 +1348,7 @@ export class WorkspaceProvider
             dir_path,
             vscode.TreeItemCheckboxState.Checked
           )
+          this._checked_directories.add(dir_path)
           this._partially_checked_dirs.delete(dir_path)
         } else if (any_checked) {
           // Partial state: some but not all children are checked
@@ -1318,12 +1356,14 @@ export class WorkspaceProvider
             dir_path,
             vscode.TreeItemCheckboxState.Unchecked
           )
+          this._checked_directories.delete(dir_path)
           this._partially_checked_dirs.add(dir_path)
         } else {
           this._checked_items.set(
             dir_path,
             vscode.TreeItemCheckboxState.Unchecked
           )
+          this._checked_directories.delete(dir_path)
           this._partially_checked_dirs.delete(dir_path)
         }
       } else {
@@ -1332,6 +1372,7 @@ export class WorkspaceProvider
           dir_path,
           vscode.TreeItemCheckboxState.Unchecked
         )
+        this._checked_directories.delete(dir_path)
         this._partially_checked_dirs.delete(dir_path)
       }
     } catch (error) {
@@ -1419,7 +1460,10 @@ export class WorkspaceProvider
         }
 
         if (is_directory && !is_broken_link) {
+          this._checked_directories.add(full_path)
           await this._update_directory_check_state(full_path, state, false)
+        } else {
+          this._checked_directories.delete(full_path)
         }
       }
     } catch (error) {
@@ -1441,10 +1485,8 @@ export class WorkspaceProvider
     return Array.from(this._checked_items.entries())
       .filter(
         ([file_path, state]) =>
-          state == vscode.TreeItemCheckboxState.Checked &&
-          fs.existsSync(file_path) &&
-          (fs.lstatSync(file_path).isFile() ||
-            fs.lstatSync(file_path).isSymbolicLink()) &&
+          state === vscode.TreeItemCheckboxState.Checked &&
+          !this._checked_directories.has(file_path) &&
           (() => {
             const workspace_root = this.get_workspace_root_for_file(file_path)
             return workspace_root
@@ -1470,6 +1512,7 @@ export class WorkspaceProvider
     this._checked_items.clear()
     this._checked_timestamps.clear()
     this._partially_checked_dirs.clear()
+    this._checked_directories.clear()
     this._token_calculator.clear_selected_counts()
 
     // First pass: handle directories and create a list of all files to check
@@ -1493,6 +1536,7 @@ export class WorkspaceProvider
 
       if (is_directory) {
         this._checked_items.set(file_path, vscode.TreeItemCheckboxState.Checked)
+        this._checked_directories.add(file_path)
         await this._update_directory_check_state(
           file_path,
           vscode.TreeItemCheckboxState.Checked,
@@ -1508,6 +1552,7 @@ export class WorkspaceProvider
     // Second pass: process individual files
     for (const file_path of all_files_to_check) {
       this._checked_items.set(file_path, vscode.TreeItemCheckboxState.Checked)
+      this._checked_directories.delete(file_path)
 
       const timestamp =
         timestamps?.get(file_path) ??
@@ -1682,6 +1727,7 @@ export class WorkspaceProvider
         workspace_root,
         vscode.TreeItemCheckboxState.Checked
       )
+      this._checked_directories.add(workspace_root)
       // Directories don't need timestamps for context collection
       this._partially_checked_dirs.delete(workspace_root)
       this._token_calculator.invalidate_directory_selected_count(workspace_root)
@@ -1700,11 +1746,14 @@ export class WorkspaceProvider
         this._token_calculator.invalidate_directory_selected_count(key)
 
         if (item.isDirectory) {
+          this._checked_directories.add(key)
           await this._update_directory_check_state(
             key,
             vscode.TreeItemCheckboxState.Checked,
             false
           )
+        } else {
+          this._checked_directories.delete(key)
         }
       }
     }
