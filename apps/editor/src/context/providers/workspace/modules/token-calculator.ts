@@ -22,7 +22,6 @@ type TokenCountsCache = {
 }
 
 const SHOW_COUNTING_NOTIFICATION_DELAY_MS = 3000
-
 const TOKEN_CACHE_FILE_NAME = 'token-counts-cache.json'
 
 export class TokenCalculator implements vscode.Disposable {
@@ -262,6 +261,39 @@ export class TokenCalculator implements vscode.Disposable {
         total: this._file_token_counts.get(file_path)!,
         shrink: this._file_shrink_token_counts.get(file_path)!
       }
+    }
+
+    // 1. FAST PATH for Send Only File Tree Mode
+    if (this._provider.send_only_file_tree) {
+      const workspace_root =
+        this._provider.get_workspace_root_for_file(file_path)
+      let relative_path = file_path
+      if (workspace_root) {
+        relative_path = path
+          .relative(workspace_root, file_path)
+          .replace(/\\/g, '/')
+        if (this._provider.get_workspace_roots().length > 1) {
+          const workspace_name =
+            this._provider.get_workspace_name(workspace_root)
+          relative_path = `${workspace_name}/${relative_path}`
+        }
+      }
+
+      let estimated_size = 0
+      try {
+        const stats = await fs.promises.stat(file_path)
+        estimated_size = Math.floor(stats.size / 4)
+      } catch {}
+
+      // Estimate token count just for the filename string (approx 1 token per 4 chars)
+      const line = `${relative_path} (~${estimated_size} tokens)\n`
+      const token_count = Math.max(1, Math.floor(line.length / 4))
+
+      // Cache in memory ONLY so we don't poison the persistent cache with string sizes
+      this._file_token_counts.set(file_path, token_count)
+      this._file_shrink_token_counts.set(file_path, token_count)
+
+      return { total: token_count, shrink: token_count }
     }
 
     const workspace_root = this._provider.get_workspace_root_for_file(file_path)
@@ -631,6 +663,12 @@ export class TokenCalculator implements vscode.Disposable {
           data: error
         })
       }
+    }
+
+    // Wenn der File Tree Modus an ist, schätzen wir ~8 Tokens on top für den XML-Wrapper
+    if (this._provider.send_only_file_tree && result.total > 0) {
+      result.total += 8
+      result.shrink += 8
     }
 
     return result
