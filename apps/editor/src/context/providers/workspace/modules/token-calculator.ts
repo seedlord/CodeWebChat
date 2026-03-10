@@ -682,8 +682,9 @@ export class TokenCalculator implements vscode.Disposable {
       }
 
       if (this._provider.send_only_file_tree && result.total > 0) {
-        result.total += 8
-        result.shrink += 8
+        // System instruction (~85 tokens) + <workspace_file_tree> tags (~10 tokens)
+        result.total += 95
+        result.shrink += 95
       }
 
       return result

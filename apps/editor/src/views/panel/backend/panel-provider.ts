@@ -1291,10 +1291,14 @@ export class PanelProvider implements vscode.WebviewViewProvider {
               : this.find_relevant_files_instructions
       : this.active_instructions_state
 
-    target_state.instructions[target_state.active_index] = text
+    const current_text =
+      target_state.instructions[target_state.active_index] || ''
+    const new_text = current_text ? `${current_text}\n\n${text}` : text
+
+    target_state.instructions[target_state.active_index] = new_text
 
     if (!target_mode || target_mode === this.prompt_type) {
-      this.caret_position = text.length
+      this.caret_position = new_text.length
     }
 
     this.send_message({
